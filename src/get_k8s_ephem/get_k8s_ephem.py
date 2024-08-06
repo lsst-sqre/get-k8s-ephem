@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Carry out the Kubernetes query and reduction to determine ephemeral
-storage by pod."""
+storage by pod and images pulled to each node."""
 
 import json
 import subprocess
@@ -27,6 +27,18 @@ class Executor:
                     f"/api/v1/nodes/{node}/proxy/stats/summary"
                 ]
             )
+            nodejson = self._run_json(
+                [
+                    "kubectl",
+                    "get",
+                    "node",
+                    node,
+                    "-o",
+                    "json"
+                ]
+            )
+            images = nodejson["status"]["images"]
+            images.sort(key=lambda x: x["sizeBytes"], reverse=True)
             pods = stats["pods"]
             nodedata: dict[str, Any] = {}
             for pod in pods:
@@ -37,17 +49,21 @@ class Executor:
                 if not nodedata:
                     nodedata["availableBytes"] = es["availableBytes"]
                     nodedata["capacityBytes"] = es["capacityBytes"]
-                    nodedata["usage"] = []
-                nodedata["usage"].append(
+                    nodedata["podUsage"] = []
+                    nodedata["images"] = images
+                nodedata["podUsage"].append(
                     {
                         "pod": p_id,
                         "usedBytes": es["usedBytes"]
                     }
                 )
             if nodedata:
+                nodedata["podUsage"].sort(
+                    key=lambda x: x["usedBytes"], reverse=True
+                )
                 nodedata["node"] = node
-                nodedata["totalUsage"] = sum(
-                    [ x["usedBytes"] for x in nodedata["usage"] ] 
+                nodedata["totalPodUsage"] = sum(
+                    [ x["usedBytes"] for x in nodedata["podUsage"] ]
                 )
                 self._results.append(nodedata)
 
