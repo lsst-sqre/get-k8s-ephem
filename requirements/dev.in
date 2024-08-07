@@ -1,0 +1,10 @@
+# -c main.txt
+
+# Testing
+mypy
+pre-commit
+pytest
+ruff
+
+# Docs
+scriv[toml]
